@@ -5,7 +5,6 @@ import {
   IconButton, 
   Button, 
   CircularProgress, 
-  Paper,
   AppBar,
   Toolbar,
   Chip,
@@ -18,7 +17,9 @@ import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
 import { ExcelIcon, PdfIcon, WordIcon } from "../../utils/icons.tsx";
 import DocumentIcon from '@mui/icons-material/Description';
+import MarkdownIcon from '@mui/icons-material/Code'; // You can choose a more appropriate icon
 import { pdfjs } from 'react-pdf';
+import MarkdownViewer from '../../utils/markdownRenderer.tsx'; // Import the markdown viewer component
 
 // Configuration for react-pdf
 pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
@@ -42,12 +43,14 @@ const getIcon = (fileName?: string) => {
     case 'xlsx':
     case 'xls':
       return <ExcelIcon sx={{ mr: 1 }} />;
+    case 'md':
+    case 'markdown':
+      return <MarkdownIcon sx={{ mr: 1 }} />; // Add markdown icon
     default:
       return <DocumentIcon sx={{ mr: 1 }} />;
   }
 };
 
-// Format date as 'DD/MM/YYYY'
 export const DocumentViewer: React.FC<DocumentViewerProps> = ({ 
   document, 
   open, 
@@ -57,7 +60,6 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
   const [docContent, setDocContent] = useState<string>('');
   const [isLoadingDoc, setIsLoadingDoc] = useState<boolean>(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-
 
   // Download document
   const downloadDocument = () => {
@@ -70,23 +72,6 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
         document.body.appendChild(downloadLink);
         downloadLink.click();
         document.body.removeChild(downloadLink);
-        
-        // Alternative approach if the above doesn't work
-        /*
-        fetch(document.file_url)
-          .then(response => response.blob())
-          .then(blob => {
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = document.file_name || "document";
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(url);
-            document.body.removeChild(a);
-          })
-          .catch(error => console.error('Download failed:', error));
-        */
       } catch (error) {
         console.error('Download error:', error);
         // Fallback - open in new tab if download fails
@@ -95,32 +80,39 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
     }
   };
 
-  // Load Word document content
+  // Load document content based on type
   useEffect(() => {
-    if (document && ['docx', 'doc'].includes(document.file_name?.split('.').pop()?.toLowerCase())) {
-      const loadDocument = async () => {
+    if (!document || !open) return;
+
+    const fileType = document.file_name?.split('.').pop()?.toLowerCase();
+    
+    // Handle Markdown files
+    if (['md', 'markdown'].includes(fileType)) {
+      const loadMarkdownDocument = async () => {
         try {
           setIsLoadingDoc(true);
           setLoadError(null);
 
-          let arrayBuffer;
-
-          // If we have content in base64
+          // If we have content as a string
           if (typeof document.content === 'string' && document.content.length > 0) {
-            // Decode base64 to binary
-            const binary = atob(document.content);
-            const array = new Uint8Array(binary.length);
-            for (let i = 0; i < binary.length; i++) {
-              array[i] = binary.charCodeAt(i);
+            try {
+              console.log(document)
+              // Try to decode base64 to text
+              const decodedText = atob(document.content);
+              setDocContent(decodedText);
+            } catch (error) {
+              // If Base64 decoding fails, assume it's already plain text
+              console.log("Base64 decoding failed, using content as plain text");
+              setDocContent(document.content);
             }
-            arrayBuffer = array.buffer;
           }
           // Otherwise, try to load from URL
           else if (document.file_url) {
             try {
               const response = await fetch(document.file_url);
               if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-              arrayBuffer = await response.arrayBuffer();
+              const text = await response.text();
+              setDocContent(text);
             } catch (error) {
               throw new Error(`Download error: ${error.message}`);
             }
@@ -128,29 +120,17 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
           else {
             throw new Error("No content or URL available");
           }
-
-          try {
-            // Import mammoth dynamically
-            const mammoth = await import('mammoth');
-
-            // Convert DOCX to HTML
-            const result = await mammoth.default.convertToHtml({ arrayBuffer });
-
-            setDocContent(result.value);
-          } catch (error) {
-            throw new Error(`Conversion error: ${error.message}`);
-          }
         } catch (error) {
-          console.error("Error loading document:", error);
+          console.error("Error loading markdown document:", error);
           setLoadError(error.message);
         } finally {
           setIsLoadingDoc(false);
         }
       };
 
-      loadDocument();
+      loadMarkdownDocument();
     }
-  }, [document]);
+  }, [document, open]);
 
   // Clean state when closing
   useEffect(() => {
@@ -180,56 +160,47 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
       case 'pdf': 
       case 'xlsx':
       case 'xls': 
-        return <div>  </div>
+
       case 'docx':
       case 'doc':
+        return <div>  </div>
+      // New case for Markdown files
+      case 'md':
+      case 'markdown':
         return (
           <Box sx={{ display: 'flex', flexDirection: 'column', height: '98%' }}>
-            {/* Content area */}
-            <Box sx={{ flex: 1, overflow: 'auto', p: 3, bgcolor: 'background.paper', borderRadius: 1 }}>
-              {isLoadingDoc ? (
-                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
-                  <CircularProgress />
-                </Box>
-              ) : loadError ? (
-                <Box sx={{ textAlign: 'center', p: 3 }}>
-                  <Typography variant="h6" color="error" gutterBottom>
-                    Error loading document
-                  </Typography>
-                  <Typography variant="body1">
-                    {loadError}
-                  </Typography>
-                  <Button
-                    variant="contained"
-                    color="primary"
-                    sx={{ mt: 2 }}
-                    onClick={() => document.file_url && window.open(document.file_url, '_blank')}
-                  >
-                    Try opening in a new tab
-                  </Button>
-                </Box>
-              ) : docContent ? (
-                <Paper sx={{ p: 3, boxShadow: 'none' }}>
-                  <div
-                    dangerouslySetInnerHTML={{ __html: docContent }}
-                    style={{
-                      fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
-                      lineHeight: 1.5
-                    }}
-                  />
-                </Paper>
-              ) : (
-                <Box sx={{ textAlign: 'center', p: 3 }}>
-                  <Typography variant="body1">
-                    Unable to load document content.
-                  </Typography>
-                </Box>
-              )}
-            </Box>
+            {isLoadingDoc ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+                <CircularProgress />
+              </Box>
+            ) : loadError ? (
+              <Box sx={{ textAlign: 'center', p: 3 }}>
+                <Typography variant="h6" color="error" gutterBottom>
+                  Error loading markdown document
+                </Typography>
+                <Typography variant="body1">
+                  {loadError}
+                </Typography>
+                <Button
+                  variant="contained"
+                  color="primary"
+                  sx={{ mt: 2 }}
+                  onClick={() => document.file_url && window.open(document.file_url, '_blank')}
+                >
+                  Try opening in a new tab
+                </Button>
+              </Box>
+            ) : docContent ? (
+              <MarkdownViewer markdown={docContent} /> // Use our MarkdownViewer component
+            ) : (
+              <Box sx={{ textAlign: 'center', p: 3 }}>
+                <Typography variant="body1">
+                  Unable to load markdown content.
+                </Typography>
+              </Box>
+            )}
           </Box>
         );
-        
-     
         
       default:
         // For text files or other types
@@ -248,10 +219,15 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
             );
           } catch (error) {
             console.error("Error decoding base64:", error);
+            // If Base64 decoding fails, just show the content as is
             return (
-              <Typography variant="body1" sx={{ p: 2 }}>
-                Content cannot be displayed
-              </Typography>
+              <Box sx={{ maxHeight: 'calc(100vh - 180px)', overflowY: 'auto', p: 3, bgcolor: 'background.paper', borderRadius: 1 }}>
+                <Typography variant="body1">
+                  {document.content.split('\n\n').map((paragraph, index) => (
+                    <p key={index}>{paragraph}</p>
+                  ))}
+                </Typography>
+              </Box>
             );
           }
         } else if (document.file_url) {

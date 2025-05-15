@@ -230,8 +230,15 @@ class FeedbackDatabase(BaseModel):
     #user: str = "fred_user"
     #password: str
 
+class FrontendFlags(BaseModel):
+    enableK8Features: bool = False
+    enableElecWarfare: bool = False
+
+class FrontendSettings(BaseModel):
+    feature_flags: FrontendFlags
 
 class Configuration(BaseModel):
+    features: FrontendSettings
     database: DatabaseConfiguration
     kubernetes: KubernetesConfiguration
     ai: AIConfig

@@ -25,6 +25,9 @@ import { FactsWorkload } from "../pages/FactsWorkload.tsx";
 import { ProtectedRoute } from "../components/ProtectedRoute.tsx";
 import { DocumentLibrary } from "../pages/DocumentLibrary.tsx";
 import { AgentHub } from "../pages/AgentHub.tsx";
+import { FeatureFlagKey, isFeatureEnabled } from "../common/config.tsx";
+import { Optimize } from "../pages/Optimize.tsx";
+import { Geomap } from "../pages/TheaterOfOperations.tsx";
 
 function MainContent({ }) {
   const applicationContext = useContext(ApplicationContext); // Access the ApplicationContext
@@ -42,36 +45,31 @@ function MainContent({ }) {
             <Route path="" element={<FootprintContextProvider><Chat /></FootprintContextProvider>} />
           </Route>
 
-         {/*  <Route path="/explain" element={<ProtectedRoute permission={"viewer"} />}>
-            <Route index element={<ExplainContextProvider><Explain /></ExplainContextProvider>} />
-          </Route>
-          <Route path="/facts" element={<ProtectedRoute permission={"viewer"} />}>
-            <Route index element={<ExplainContextProvider><Facts /></ExplainContextProvider>} />
-          </Route>
+          {isFeatureEnabled(FeatureFlagKey.ENABLE_K8_FEATURES) && (
+            <>
+              <Route path="/score/:cluster/:namespace/:application" element={<Scores />} />
+              <Route path="/facts-workload" element={<FactsWorkload />} />
+              <Route path="/facts-cluster" element={<FactsCluster />} />
+              <Route path="/facts-namespace" element={<FactsNamespace />} />
+              <Route path="/explain-cluster" element={<ExplainCluster />} />
+              <Route path="/explain-namespace" element={<ExplainNamespace />} />
+              <Route path="/explain-workload" element={<ExplainContextProvider><ExplainWorkload /></ExplainContextProvider>} />
+              <Route path="/optimize" element={<ProtectedRoute permission={"viewer"} />}>
+                <Route index element={<Optimize />} />
+              </Route>
+            </>
+          )}
+          {isFeatureEnabled(FeatureFlagKey.ENABLE_K8_FEATURES) && (
+            <>
+              <Route path="/geomap" element={<ProtectedRoute permission={"viewer"} />}>
+                <Route index element={<Geomap />} />
+              </Route>
+            </>
+          )}
 
-          <Route path="/audit" element={<ProtectedRoute permission={"viewer"} />}>
-            <Route index element={<Audit />} />
-          </Route>
-
-          <Route path="/debug" element={<ProtectedRoute permission={"viewer"} />}>
-            <Route index element={<FootprintContextProvider><Debug></Debug></FootprintContextProvider>} />
-          </Route>
-
-          <Route path="/inspect" element={<ProtectedRoute permission={"viewer"} />}>
-            <Route index element={<FootprintContextProvider><Inspect /></FootprintContextProvider>} />
-          </Route>
- */}
           <Route path="/chat" element={<ProtectedRoute permission={"viewer"} />}>
             <Route index element={<Chat />} />
           </Route>
-
-         {/*  <Route path="/optimize" element={<ProtectedRoute permission={"viewer"} />}>
-            <Route index element={<Optimize />} />
-          </Route>
-
-          <Route path="/geomap" element={<ProtectedRoute permission={"viewer"} />}>
-            <Route index element={<Geomap />} />
-          </Route>  */}
 
           <Route path="/profile" element={<ProtectedRoute permission={"viewer"} />}>
             <Route index element={<Profile />} />
@@ -82,20 +80,13 @@ function MainContent({ }) {
           </Route>
 
 
-         <Route path="/agentHub" element={<ProtectedRoute permission={"viewer"} />}>
+          <Route path="/agentHub" element={<ProtectedRoute permission={"viewer"} />}>
             <Route index element={<AgentHub />} />
           </Route>
-          <Route path="/score/:cluster/:namespace/:application" element={<Scores />} />
-          <Route path="/facts-workload" element={<FactsWorkload />} />
-          <Route path="/facts-cluster" element={<FactsCluster />} />
-          <Route path="/facts-namespace" element={<FactsNamespace />} />
-          <Route path="/explain-cluster" element={<ExplainCluster />} />
-          <Route path="/explain-namespace" element={<ExplainNamespace />} />
-          <Route path="/explain-workload" element={<ExplainContextProvider><ExplainWorkload /></ExplainContextProvider>} />
 
           {/* Redirect for invalid paths */}
           <Route path="*" element={<PageError />} />
-        </Routes> 
+        </Routes>
       </ThemeProvider>
     </>
   );
@@ -105,13 +96,13 @@ function FredUi() {
   return (
     <React.Suspense fallback={<div>Loading</div>}>
       <ToastProvider>
-          <ConfirmationDialogProvider>
-            <Router>
-              <ApplicationContextProvider>
-                <MainContent />
-              </ApplicationContextProvider>
-            </Router>
-          </ConfirmationDialogProvider>
+        <ConfirmationDialogProvider>
+          <Router>
+            <ApplicationContextProvider>
+              <MainContent />
+            </ApplicationContextProvider>
+          </Router>
+        </ConfirmationDialogProvider>
       </ToastProvider>
     </React.Suspense>
   );

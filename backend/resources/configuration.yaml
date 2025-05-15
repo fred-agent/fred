@@ -9,6 +9,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+
+features:
+  feature_flags:
+    # If true acuivate the backend and frontend modules in charge of K8 
+    # and frugality monitoring
+    enableK8Features: false
+    # If true activate support for an electronic warfare demonstration
+    enableElecWarfare: false
+
 database:
   type: csv
   csv_files:
@@ -40,8 +50,11 @@ ai:
   default_model:
     #provider: "ollama"
     #name: "llama2"
-    provider: "openai"
-    name: "gpt-4o"
+    # provider: "openai"
+    # name: "gpt-4o"
+    provider: "azure"
+    name: "fred-gpt-4o"
+    api_version: "2024-05-01-preview"
     temperature: 0.0
   leader:
     name: "Fred"

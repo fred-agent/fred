@@ -3,10 +3,12 @@ import {
   Box, IconButton, Typography, useMediaQuery, useTheme,
   Avatar, List, ListItem, ListItemIcon, ListItemText, Tooltip
 } from '@mui/material';
+import AssistantIcon from '@mui/icons-material/Assistant';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import ChatIcon from '@mui/icons-material/Chat';
 import PersonIcon from '@mui/icons-material/Person';
 import MenuIcon from '@mui/icons-material/Menu';
+import AssessmentIcon from '@mui/icons-material/Assessment';
 import GroupIcon from '@mui/icons-material/Group';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
 import LightModeIcon from '@mui/icons-material/LightMode';
@@ -17,6 +19,7 @@ import { ImageComponent } from "../utils/image.tsx";
 import { useContext } from "react";
 import { ApplicationContext } from "./ApplicationContextProvider.tsx";
 import { SideBarClusterSelector } from "../components/SideBarClusterSelector.tsx";
+import { FeatureFlagKey, isFeatureEnabled } from "../common/config.tsx";
 
 export default function SideBar({ darkMode, onThemeChange }) {
   const theme = useTheme();
@@ -38,15 +41,8 @@ export default function SideBar({ darkMode, onThemeChange }) {
 
   // Éléments de menu du premier fichier
   const menuItems = [
-    {
-      key: 'chat',
-      label: 'Chat',
-      icon: <ChatIcon />,
-      url: `/chat?cluster=${currentClusterFullname}`,
-      canBeDisabled: false,
-      tooltip: 'Chat with the AI assistant team'
-    },
-     /*
+    
+    ...(isFeatureEnabled(FeatureFlagKey.ENABLE_K8_FEATURES) ? [
     {
       key: 'explain',
       label: 'Cluster',
@@ -70,8 +66,25 @@ export default function SideBar({ darkMode, onThemeChange }) {
       url: `/audit?cluster=${currentClusterFullname}`,
       canBeDisabled: true,
       tooltip: 'View a complete eco-score audit of the selected cluster'
+    },{
+      key: 'chat',
+      label: 'Chat',
+      icon: <ChatIcon />,
+      url: `/chat?cluster=${currentClusterFullname}`,
+      canBeDisabled: false,
+      tooltip: 'Chat with the AI assistant team'
+    }
+    ] : [
+      {
+      key: 'chat',
+      label: 'Chat',
+      icon: <ChatIcon />,
+      url: `/chat`,
+      canBeDisabled: false,
+      tooltip: 'Chat with the AI assistant team'
     },
-    
+    ]),
+    /*
     {
        key: 'geomap',
        label: 'Map',
@@ -228,7 +241,7 @@ export default function SideBar({ darkMode, onThemeChange }) {
         </Box>
       )}
 
-      {!isSidebarSmall && (
+      {!isSidebarSmall && isFeatureEnabled(FeatureFlagKey.ENABLE_K8_FEATURES) &&  (
         <Box sx={{ pt: 3, px: 2 }}>
           <SideBarClusterSelector
             currentClusterOverview={applicationContext.currentClusterOverview}
@@ -238,7 +251,6 @@ export default function SideBar({ darkMode, onThemeChange }) {
         </Box>
       )}
 
-      {/* Menu de navigation */}
       <List sx={{
         pt: 3,
         px: isSidebarSmall ? 1 : 2,
@@ -368,7 +380,7 @@ export default function SideBar({ darkMode, onThemeChange }) {
               <IconButton
                 color="inherit"
                 size="small"
-                onClick={() => window.open("https://innovation.forthales.com", "_blank", "noopener,noreferrer")}
+                onClick={() => window.open("https://paradox-innovation.dev", "_blank", "noopener,noreferrer")}
                 sx={{ p: 0.3 }}
               >
                 <OpenInNewIcon sx={{ fontSize: '0.8rem', color: 'text.secondary' }} />

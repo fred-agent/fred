@@ -26,7 +26,6 @@ import {
 } from "@mui/material";
 import ClearIcon from "@mui/icons-material/Clear";
 import { useCallback, useEffect, useState } from "react";
-import { DocumentCard } from "../components/DocumentCard";
 import { LoadingSpinner } from "../utils/loadingSpinner";
 import UploadIcon from '@mui/icons-material/Upload';
 import SaveIcon from '@mui/icons-material/Save';
@@ -34,13 +33,19 @@ import SearchIcon from '@mui/icons-material/Search';
 import LibraryBooksRoundedIcon from '@mui/icons-material/LibraryBooksRounded';
 import { KeyCloakService } from "../security/KeycloakService";
 import {
+  KnowledgeDocument,
   useDeleteDocumentMutation,
-  useGetDocumentsWithFilterMutation
+  useGetDocumentsWithFilterMutation,
+  useGetFullDocumentMutation
 } from "../slices/documentApi";
 import { useGetChatBotAgenticFlowsMutation } from "../slices/chatApi";
 import { streamProcessDocument } from "../slices/streamDocumentUpload";
 import { useToast } from "../components/ToastProvider";
 import { ProgressStep, ProgressStepper } from "../components/ProgressStepper";
+import { DocumentTable } from "../components/documents/DocumentTable";
+import { DocumentDrawerTable } from "../components/documents/DocumentDrawerTable";
+import DocumentViewer from "../components/chatbot/DocumentViewer";
+
 export const DocumentLibrary = () => {
   const { showInfo, showError, showWarning } = useToast();
 
@@ -48,6 +53,7 @@ export const DocumentLibrary = () => {
   const [deleteDocument] = useDeleteDocumentMutation();
   const [getDocumentsWithFilter] = useGetDocumentsWithFilterMutation();
   const [getAgenticFlows] = useGetChatBotAgenticFlowsMutation();
+  const [getDocumentContent] = useGetFullDocumentMutation()
 
   const theme = useTheme();
 
@@ -71,6 +77,8 @@ export const DocumentLibrary = () => {
   // This ensures a clear separation between "pending uploads" and "uploaded documents."
   const [tempFiles, setTempFiles] = useState([]);
 
+  const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
+
   // UI States
   const [uploadProgressSteps, setUploadProgressSteps] = useState<ProgressStep[]>([]);
 
@@ -87,6 +95,10 @@ export const DocumentLibrary = () => {
   // Backend Data States
   const [agenticFlows, setAgenticFlows] = useState([]); // List of available agents fetched from backend
   const [currentAgenticFlow, setCurrentAgenticFlow] = useState(null); // Currently selected agent flow object
+
+  const [documentViewerOpen, setDocumentViewerOpen] = useState<boolean>(false);
+  const [fullDocument, setFullDocument] = useState<any>(null);
+  const [loading, setLoading] = useState<boolean>(false);
 
   // userInfo:
   // Stores information about the currently authenticated user.
@@ -157,10 +169,11 @@ export const DocumentLibrary = () => {
         detail: `Document ${document_uid} deleted`,
         duration: 3000,
       });
-
+      await fetchFiles(); // <-- ensures fresh backend state
+      setSelectedFiles((prev) => prev.filter((id) => id !== document_uid));
       // Remove from local state too
-      const newFiles = currentAgentFiles.filter((file) => file.document_uid !== document_uid);
-      setCurrentAgentFiles(newFiles);
+      // const newFiles = currentAgentFiles.filter((file) => file.document_uid !== document_uid);
+      // setCurrentAgentFiles(newFiles);
 
       /* setFilteredFiles((prev) =>
         prev.filter((file) => file.document_uid !== document_uid)
@@ -185,9 +198,20 @@ export const DocumentLibrary = () => {
       const filters = agentFilter?.trim()
         ? { front_metadata: { agent_name: agentFilter } }
         : {};
+
       const response = await getDocumentsWithFilter(filters).unwrap();
-      setCurrentAgentFiles(response.documents);
-      console.log("Setting current agent files to:", response.documents); // <-- ADD THIS
+
+      const docs = response.documents as KnowledgeDocument[];
+
+      setCurrentAgentFiles(
+        docs.map((doc) => ({
+          document_uid: doc.document_uid,
+          document_name: doc.document_name,
+          date_added_to_kb: doc.date_added_to_kb,
+          retrievable: doc.retrievable,
+          agent_name: doc.front_metadata?.agent_name || "-"
+        }))
+      );
     } catch (error) {
       console.error('Error fetching files:', error);
     } finally {
@@ -246,6 +270,35 @@ export const DocumentLibrary = () => {
   // Hero background styling
   const heroBackground =
     `linear-gradient(${theme.palette.heroBackgroundGrad.gradientFrom}, ${theme.palette.heroBackgroundGrad.gradientTo})`
+
+
+  // Fetch the full document when the user clicks on "View Full Document"
+  // and open the DocumentViewer component
+  const handleViewDocument = async (document_uid: string) => {
+    setLoading(true);
+    try {
+      let response;
+      // Vérifier si nous avons un agent_name à filtrer
+      response = await getDocumentContent({ document_uid: document_uid }).unwrap();
+
+      if (response.documents && response.documents[0]) {
+        const doc = response.documents[0];
+        setFullDocument(doc);
+        setDocumentViewerOpen(true);
+      } else {
+        console.error("Document not found in response:", response);
+      }
+    } catch (error) {
+      console.error("Error fetching document:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCloseDocumentViewer = () => {
+    setDocumentViewerOpen(false);
+    setFullDocument(null);
+  };
 
   return (
     <PageBodyWrapper>
@@ -404,34 +457,29 @@ export const DocumentLibrary = () => {
                 <Typography variant="h6" fontWeight="bold" gutterBottom sx={{ mb: 2 }}>
                   Documents ({filteredFiles.length})
                 </Typography>
-
-                <Box
-                  sx={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 0.5,
-                    mb: 3
+                <DocumentTable
+                  files={currentDocuments}
+                  selected={selectedFiles}
+                  onToggleSelect={(uid) => {
+                    setSelectedFiles((prev) =>
+                      prev.includes(uid)
+                        ? prev.filter((id) => id !== uid)
+                        : [...prev, uid]
+                    );
                   }}
-                >
-                  {currentDocuments.map((file) => (
-                    <Fade in={showElements} key={file.document_uid} timeout={1500}>
-                      <Box>
-                        <DocumentCard
-                          fileId={file.document_uid}
-                          fileName={file.document_name}
-                          onDelete={userInfo.canManageDocuments ? () => handleDelete(file.document_uid) : null}
-                          size="medium"
-                          retrievable={file.retrievable}
-                          date_added_to_kb={file.date_added_to_kb}
-                          agent_name={file.agent_name}
-                          isAdmin={userInfo.canManageDocuments}
-                        />
-                      </Box>
-                    </Fade>
-                  ))}
-                </Box>
+                  onToggleAll={(checked) => {
+                    setSelectedFiles(checked ? currentDocuments.map(f => f.document_uid) : []);
+                  }}
+                  onDelete={handleDelete}
+                  onToggleRetrievable={(file) => {
+                    // You can reuse the same logic as in DocumentCard or hook into update mutation here
+                    console.warn("Retrievable toggle not implemented in table view yet", file);
+                  }}
+                  isAdmin={userInfo.canManageDocuments}
+                  onOpen={handleViewDocument} // ✅
 
-                <Box display="flex" alignItems="center" justifyContent="space-between">
+                />
+                <Box display="flex" alignItems="center" mt={3} justifyContent="space-between">
                   <Pagination
                     count={Math.ceil(filteredFiles.length / documentsPerPage)}
                     page={currentPage}
@@ -544,7 +592,6 @@ export const DocumentLibrary = () => {
               border: "1px dashed",
               borderColor: "divider",
               borderRadius: "12px",
-              textAlign: "center",
               cursor: "pointer",
               minHeight: "180px",
               maxHeight: "400px",
@@ -553,7 +600,8 @@ export const DocumentLibrary = () => {
                 ? theme.palette.action.hover
                 : theme.palette.background.paper,
               transition: "background-color 0.3s",
-              display: "flex",
+              display: "block",
+              textAlign: "left",
               flexDirection: "column",
               alignItems: "center",
             }}
@@ -586,27 +634,7 @@ export const DocumentLibrary = () => {
                 </Typography>
               </Box>
             ) : (
-              <Box
-                display="flex"
-                flexDirection="column"
-                alignItems="center"
-                width="100%"
-                alignSelf="flex-start"
-              >
-                {Array.from(tempFiles).map((file, index) => (
-                  <DocumentCard
-                    key={index}
-                    fileName={file.name}
-                    fileId={file.document_uid}
-                    onDelete={() => handleDeleteTemp(index)}
-                    size="small"
-                    retrievable={false}
-                    date_added_to_kb={''}
-                    agent_name={''}
-                    isAdmin={true}
-                  />
-                ))}
-              </Box>
+              <DocumentDrawerTable files={tempFiles} onDelete={handleDeleteTemp} />
             )}
           </Paper>
           {uploadProgressSteps.length > 0 && (
@@ -637,6 +665,12 @@ export const DocumentLibrary = () => {
           </Box>
         </Drawer>
       )}
+      <DocumentViewer
+        document={fullDocument}
+        open={documentViewerOpen}
+        onClose={handleCloseDocumentViewer}
+        loading={loading}
+      />
     </PageBodyWrapper>
   );
 };

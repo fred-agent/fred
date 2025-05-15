@@ -1,20 +1,20 @@
 import { useState } from "react";
 import { useTheme } from "@mui/material/styles";
-import { 
-  Button, 
-  Card, 
-  CardContent, 
-  Collapse, 
-  Tooltip, 
-  Typography, 
-  Modal, 
-  Box, 
-  IconButton, 
-  Divider, 
-  Drawer, 
-  Backdrop, 
-  Chip,
-  Paper
+import {
+    Button,
+    Card,
+    CardContent,
+    Collapse,
+    Tooltip,
+    Typography,
+    Modal,
+    Box,
+    IconButton,
+    Divider,
+    Drawer,
+    Backdrop,
+    Chip,
+    Paper
 } from "@mui/material";
 import Grid2 from "@mui/material/Grid2";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
@@ -52,17 +52,17 @@ const getIcon = (fileName) => {
 // Card component for displaying source information
 const SourceCard = ({ source, onCardClick, onViewDocument, loading }) => {
     const theme = useTheme();
-    
+
     const formatDate = (dateString) => {
         return dateString ? dayjs(dateString).format('DD/MM/YYYY') : 'N/A';
     };
 
     console.log("Source", source);
     return (
-        <Card 
-            sx={{ 
-                width: 220, 
-                height: 180, 
+        <Card
+            sx={{
+                width: 220,
+                height: 180,
                 cursor: "pointer",
                 transition: "transform 0.2s, box-shadow 0.2s",
                 "&:hover": {
@@ -73,15 +73,15 @@ const SourceCard = ({ source, onCardClick, onViewDocument, loading }) => {
                 flexDirection: 'column',
                 position: 'relative',
                 overflow: 'visible'
-            }} 
+            }}
             onClick={onCardClick}
         >
             {/* Icon on top left corner */}
-            <Box 
-                sx={{ 
-                    position: 'absolute', 
-                    top: -10, 
-                    left: 10, 
+            <Box
+                sx={{
+                    position: 'absolute',
+                    top: -10,
+                    left: 10,
                     bgcolor: theme.palette.background.paper,
                     borderRadius: '50%',
                     p: 1,
@@ -92,14 +92,14 @@ const SourceCard = ({ source, onCardClick, onViewDocument, loading }) => {
             >
                 {getIcon(source.file_name)}
             </Box>
-            
+
             <CardContent sx={{ p: 2, pt: 3, flex: 1, display: 'flex', flexDirection: 'column' }}>
                 {/* Document name */}
-                <Typography 
-                    variant="subtitle1" 
-                    sx={{ 
-                        whiteSpace: 'nowrap', 
-                        overflow: 'hidden', 
+                <Typography
+                    variant="subtitle1"
+                    sx={{
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
                         textOverflow: 'ellipsis',
                         fontWeight: 'medium',
                         mb: 1,
@@ -108,18 +108,18 @@ const SourceCard = ({ source, onCardClick, onViewDocument, loading }) => {
                 >
                     {source.file_name}
                 </Typography>
-                
+
                 <Divider sx={{ my: 1 }} />
-                
+
                 {/* Informations sous le titre */}
                 <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                     {/* Titre du document */}
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                         <InfoOutlinedIcon fontSize="small" color="action" sx={{ fontSize: '0.9rem' }} />
-                        <Typography 
-                            variant="body2" 
-                            sx={{ 
-                                overflow: 'hidden', 
+                        <Typography
+                            variant="body2"
+                            sx={{
+                                overflow: 'hidden',
                                 textOverflow: 'ellipsis',
                                 display: '-webkit-box',
                                 WebkitLineClamp: 1,
@@ -129,7 +129,7 @@ const SourceCard = ({ source, onCardClick, onViewDocument, loading }) => {
                             {source.title ?? "Title unavailable"}
                         </Typography>
                     </Box>
-                    
+
                     {/* Date de modification */}
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                         <HistoryIcon fontSize="small" color="action" sx={{ fontSize: '0.9rem' }} />
@@ -137,15 +137,15 @@ const SourceCard = ({ source, onCardClick, onViewDocument, loading }) => {
                             {formatDate(source.modified)}
                         </Typography>
                     </Box>
-                    
+
                     {/* Nom de l'agent */}
                     {source.agent_name && (
-                        <Chip 
+                        <Chip
                             icon={<PersonOutlineIcon sx={{ fontSize: '0.9rem' }} />}
                             label={source.agent_name}
                             size="small"
-                            sx={{ 
-                                height: 24, 
+                            sx={{
+                                height: 24,
                                 '& .MuiChip-label': { px: 1, fontSize: '0.75rem' },
                                 alignSelf: 'flex-start',
                                 mt: 0.5
@@ -153,8 +153,8 @@ const SourceCard = ({ source, onCardClick, onViewDocument, loading }) => {
                         />
                     )}
                 </Box>
-                
-                <Tooltip title="See full document">
+
+                <Tooltip title="Preview the document">
                     <IconButton
                         onClick={onViewDocument}
                         sx={{
@@ -223,20 +223,19 @@ export default function Sources({
     // Fetch the full document when the user clicks on "View Full Document"
     // and open the DocumentViewer component
     const handleViewFullDocument = async (source: ChatSource, event: React.MouseEvent) => {
-        event.stopPropagation(); // Empêche l'ouverture de la modale
+        event.stopPropagation();
         setLoading(true);
+        setSelectedSource(null); // ❗ Close the modal before drawer opens
 
         try {
-            let response;
-            console.log("Fetching document for source:", source);
-
-            // Vérifier si nous avons un agent_name à filtrer
-            response = await getDocument({ document_uid: source }).unwrap();
+            const response = await getDocument({ document_uid: source.document_uid }).unwrap();
 
             if (response.documents && response.documents[0]) {
                 const doc = response.documents[0];
-                setFullDocument(doc);
-                setDocumentViewerOpen(true);
+                setFullDocument(doc); setTimeout(() => {
+                    setDocumentViewerOpen(true);
+                }, 100);
+
             } else {
                 console.error("Document not found in response:", response);
             }
@@ -280,13 +279,13 @@ export default function Sources({
                                 fontSize="small"
                             />
                         </Button>
-                        
+
                         <Collapse in={openSources} timeout={300} unmountOnExit>
-                            <Paper 
-                                elevation={0} 
-                                sx={{ 
-                                    mt: 1.5, 
-                                    p: 2, 
+                            <Paper
+                                elevation={0}
+                                sx={{
+                                    mt: 1.5,
+                                    p: 2,
                                     bgcolor: theme.palette.sidebar.background,
                                     borderRadius: 2
                                 }}
@@ -294,7 +293,7 @@ export default function Sources({
                                 <Grid2 container spacing={2}>
                                     {sources.slice(0, 3).map((source, index) => (
                                         <Grid2 key={index}>
-                                            <SourceCard 
+                                            <SourceCard
                                                 source={source}
                                                 onCardClick={() => handleOpenModal(source)}
                                                 onViewDocument={(e) => handleViewFullDocument(source, e)}
@@ -302,23 +301,23 @@ export default function Sources({
                                             />
                                         </Grid2>
                                     ))}
-                                    
+
                                     {sources.length > 3 && (
                                         <Grid2>
-                                            <Card 
-                                                sx={{ 
-                                                    width: 80, 
-                                                    height: 180, 
-                                                    display: 'flex', 
-                                                    alignItems: 'center', 
-                                                    justifyContent: 'center', 
+                                            <Card
+                                                sx={{
+                                                    width: 80,
+                                                    height: 180,
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
                                                     cursor: "pointer",
                                                     transition: "transform 0.2s, box-shadow 0.2s",
                                                     "&:hover": {
                                                         transform: "translateY(-4px)",
                                                         boxShadow: 3
-                                                    } 
-                                                }} 
+                                                    }
+                                                }}
                                                 onClick={handleOpenDrawer}
                                             >
                                                 <Box sx={{ textAlign: 'center' }}>
@@ -369,7 +368,7 @@ export default function Sources({
                     >
                         <CloseIcon />
                     </IconButton>
-                    
+
                     <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                         <Box sx={{ mr: 2, p: 1, bgcolor: theme.palette.background.default, borderRadius: '50%' }}>
                             {selectedSource && getIcon(selectedSource.file_name)}
@@ -388,9 +387,9 @@ export default function Sources({
                             )}
                         </Box>
                     </Box>
-                    
+
                     <Divider sx={{ my: 2 }} />
-                    
+
                     {selectedSource?.title && (
                         <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
                             <InfoOutlinedIcon color="action" />
@@ -399,7 +398,7 @@ export default function Sources({
                             </Typography>
                         </Box>
                     )}
-                    
+
                     <Box sx={{ maxHeight: '60vh', overflowY: 'auto', pr: 1 }}>
                         <MarkdownRenderer content={selectedSource?.content} />
                         {/* <Typography variant="body1" component="div">
@@ -408,11 +407,11 @@ export default function Sources({
                             ))}
                         </Typography> */}
                     </Box>
-                    
+
                     <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 3 }}>
-                        <Button 
+                        <Button
                             onClick={(e) => selectedSource && handleViewFullDocument(selectedSource, e)}
-                            variant="contained" 
+                            variant="contained"
                             startIcon={<VisibilityIcon />}
                         >
                             View Full Document
@@ -442,7 +441,7 @@ export default function Sources({
                                 All Sources ({sources.length})
                             </Typography>
                         </Box>
-                        
+
                         <IconButton
                             onClick={handleCloseDrawer}
                             aria-label="close"
@@ -450,14 +449,14 @@ export default function Sources({
                             <CloseIcon />
                         </IconButton>
                     </Box>
-                    
+
                     <Divider sx={{ mb: 3 }} />
-                    
+
                     <Box sx={{ flex: 1, overflow: 'auto' }}>
                         <Grid2 container spacing={2}>
                             {sources.map((source, index) => (
                                 <Grid2 key={index}>
-                                    <SourceCard 
+                                    <SourceCard
                                         source={source}
                                         onCardClick={() => handleOpenModal(source)}
                                         onViewDocument={(e) => handleViewFullDocument(source, e)}
@@ -471,7 +470,7 @@ export default function Sources({
             </Drawer>
 
             {/* Utilisation du nouveau composant DocumentViewer */}
-            <DocumentViewer 
+            <DocumentViewer
                 document={fullDocument}
                 open={documentViewerOpen}
                 onClose={handleCloseDocumentViewer}

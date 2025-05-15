@@ -10,6 +10,7 @@ class ChatTokenUsage(BaseModel):
 
 # --- Source document info ---
 class ChatSource(BaseModel):
+    document_uid: str
     file_name: str
     title: str
     author: str

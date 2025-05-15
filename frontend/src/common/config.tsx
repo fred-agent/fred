@@ -2,11 +2,23 @@
  * Interface representing the expected structure of the application configuration.
  * This defines the required backend API URLs and WebSocket URL for the frontend to work properly.
  */
-interface AppConfig {
+export interface AppConfig {
     backend_url_api: string;          // Base URL of the backend API
     backend_url_knowledge: string;    // Base URL of the knowledge service
     websocket_url: string;            // WebSocket server URL
+    feature_flags?: Record<string, boolean>;
 }
+
+export interface FeatureFlags {
+  enableK8Features?: boolean;
+}
+
+export const FeatureFlagKey = {
+  ENABLE_K8_FEATURES: "enableK8Features",
+  ENABLE_ELEC_WARFARE: "enableElecWarfare",
+} as const;
+
+export type FeatureFlagKeyType = typeof FeatureFlagKey[keyof typeof FeatureFlagKey];
 
 let config: AppConfig | null = null;
 
@@ -19,7 +31,17 @@ export const loadConfig = async () => {
     if (!response.ok) {
         throw new Error(`Cannot load config file /config.json: ${response.statusText}`);
     }
-    config = await response.json();
+    const baseConfig = await response.json();
+
+    // then call backend for dynamic feature flags
+    const featureRes = await fetch(`${baseConfig.backend_url_api}/fred/config/features`);
+    const backendFeatures = await featureRes.json();
+    console.log("HOURRRRRRRRA", backendFeatures)
+    config = {
+    ...baseConfig,
+    feature_flags: backendFeatures.feature_flags
+  };
+
 };
 
 /**
@@ -31,4 +53,13 @@ export const getConfig = (): AppConfig => {
         throw new Error("Config file /config.json not loaded yet.");
     }
     return config;
+};
+
+/**
+ * Checks if a specific feature flag is enabled in the configuration.
+ * @param flag 
+ * @returns 
+ */
+export const isFeatureEnabled = (flag: FeatureFlagKeyType): boolean => {
+  return !!getConfig().feature_flags?.[flag];
 };

@@ -54,6 +54,10 @@ from services.frontend.feedback_router import Base  # This Base is your declarat
 
 logger = logging.getLogger(__name__)
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 
 def usage():
     """

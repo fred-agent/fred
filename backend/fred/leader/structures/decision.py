@@ -21,4 +21,5 @@ class ExecuteDecision(BaseModel):
         "TechnicalKubernetesExpert", 
         "TheoreticalKubernetesExpert", 
         "KedaExpert",
-        "MonitoringExpert"]
+        "MonitoringExpert",
+        "K8SOperatorExpert"]
