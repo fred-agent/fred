@@ -56,6 +56,9 @@ class SessionSchema(BaseModel):
     title: str
     updated_at: datetime
 
+class SessionWithFiles(SessionSchema):
+    file_names: list[str] = []
+    
 # --- Event wrappers ---
 class StreamEvent(BaseModel):
     type: Literal["stream"]

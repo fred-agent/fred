@@ -102,7 +102,7 @@ def main():
         dest="server_configuration_path",
         type=str,
         help="Specify the path of the configuration used",
-        default="./resources/configuration.yaml",
+        default="./config/configuration.yaml",
     )
     parser.add_argument(
         "--server.logLevel",

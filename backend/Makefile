@@ -136,7 +136,7 @@ run: dev ## Run in foreground using the root path '/fred'
 	@[ -f $(ENV_FILE) ] && echo "Env file exists" || echo "Warning: Env file not found at $(ENV_FILE)"
 	LOG_LEVEL=INFO \
 	ENV_FILE=$(ENV_FILE) \
-	$(PYTHON) ${PY_PACKAGE}/main.py --server.configurationPath ./resources/configuration.yaml --server.baseUrlPath /fred
+	$(PYTHON) ${PY_PACKAGE}/main.py --server.configurationPath ./config/configuration.yaml --server.baseUrlPath /fred
 
 .PHONY: run-config
 
@@ -145,12 +145,12 @@ run-config: dev ## Run with a specific env file (ENV_DIR=/path/to/dir)
 	@[ -f $(ENV_FILE) ] && echo "Env file exists" || echo "Warning: Env file not found at $(ENV_FILE)"
 	LOG_LEVEL=INFO \
 	ENV_FILE=$(ENV_FILE) \
-	$(PYTHON) ${PY_PACKAGE}/main.py --server.configurationPath ./resources/configuration.yaml --server.baseUrlPath /fred
+	$(PYTHON) ${PY_PACKAGE}/main.py --server.configurationPath ./config/configuration.yaml --server.baseUrlPath /fred
 
 .PHONY: run-local
 
 run-local: dev ## Run with local storage only
-	LOG_LEVEL=INFO $(PYTHON) ${PY_PACKAGE}/main.py --server.configurationPath ./resources/configuration.yaml --server.baseUrlPath /fred
+	LOG_LEVEL=INFO $(PYTHON) ${PY_PACKAGE}/main.py --server.configurationPath ./config/configuration.yaml --server.baseUrlPath /fred
 
 .PHONY: docker-run
 
@@ -159,7 +159,7 @@ docker-run: ## Run in Docker using the root path '/fred'
         -p 8000:8000 \
         -v ~/.kube/:/home/fred-user/.kube/ \
         -v ~/.aws/:/home/fred-user/.aws/ \
-        -v $(realpath resources/configuration.yaml):/app/configuration.yaml \
+        -v $(realpath config/configuration.yaml):/app/configuration.yaml \
         -v $(ENV_FILE):/app/.env \
         -e ENV_FILE=/app/.env \
         $(IMG) --server.configurationPath /app/configuration.yaml --server.baseUrlPath /fred

@@ -7,6 +7,7 @@ export interface AppConfig {
     backend_url_knowledge: string;    // Base URL of the knowledge service
     websocket_url: string;            // WebSocket server URL
     feature_flags?: Record<string, boolean>;
+    properties?: Record<string, string>;
 }
 
 export interface FeatureFlags {
@@ -34,14 +35,14 @@ export const loadConfig = async () => {
     const baseConfig = await response.json();
 
     // then call backend for dynamic feature flags
-    const featureRes = await fetch(`${baseConfig.backend_url_api}/fred/config/features`);
-    const backendFeatures = await featureRes.json();
-    console.log("HOURRRRRRRRA", backendFeatures)
+    const response_back = await fetch(`${baseConfig.backend_url_api}/fred/config/frontend_settings`);
+    const frontendSettings = await response_back.json();
+    console.log("Frontend Settings from the backend: ", frontendSettings)
     config = {
-    ...baseConfig,
-    feature_flags: backendFeatures.feature_flags
-  };
-
+      ...baseConfig,
+      feature_flags: frontendSettings.feature_flags,
+      properties: frontendSettings.properties,
+    };
 };
 
 /**
@@ -62,4 +63,8 @@ export const getConfig = (): AppConfig => {
  */
 export const isFeatureEnabled = (flag: FeatureFlagKeyType): boolean => {
   return !!getConfig().feature_flags?.[flag];
+};
+
+export const getProperty = (propertyKey: string): string => {
+  return getConfig().properties?.[propertyKey];
 };

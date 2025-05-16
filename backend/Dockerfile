@@ -83,7 +83,7 @@ ENV VIRTUAL_ENV=/app/.venv \
     PATH="/app/.venv/bin:$PATH"
 
 ENV RIFT_ENV=/app/fred
-ENV RESOURCES=/app/resources
+ENV RESOURCES=/app/config
 ENV TESTS=/app/tests
 ENV MAKEFILE=/app/Makefile
 

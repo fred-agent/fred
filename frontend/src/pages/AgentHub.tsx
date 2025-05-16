@@ -61,11 +61,6 @@ export const AgentHub = () => {
   // API Hooks
   const [getAgenticFlows] = useGetChatBotAgenticFlowsMutation();
 
-  // Hero background styling
-  const heroBackground = 
-    `linear-gradient(${theme.palette.heroBackgroundGrad.gradientFrom}, ${theme.palette.heroBackgroundGrad.gradientTo})`;
-
-
   useEffect(() => {
     setShowElements(true);
     setUserInfo({
@@ -166,7 +161,6 @@ export const AgentHub = () => {
       <Box
         sx={{
           position: "relative",
-          backgroundImage: `${heroBackground}, url('https://www.thalesgroup.com/sites/default/files/database/assets/images/2022-07/BandeauGroupeAbout2018.jpg')`,
           backgroundSize: "cover",
           backgroundPosition: "center",
           py: { xs: 3, md: 4 },

@@ -234,11 +234,15 @@ class FrontendFlags(BaseModel):
     enableK8Features: bool = False
     enableElecWarfare: bool = False
 
+class Properties(BaseModel):
+    logoName: str = 'fred'
+
 class FrontendSettings(BaseModel):
     feature_flags: FrontendFlags
+    properties: Properties
 
 class Configuration(BaseModel):
-    features: FrontendSettings
+    frontend_settings: FrontendSettings
     database: DatabaseConfiguration
     kubernetes: KubernetesConfiguration
     ai: AIConfig

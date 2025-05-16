@@ -103,15 +103,9 @@ const ChatBot = (
                             break;
                         }
                         case "final": {
-                            for (const msg of response.messages) {
-                                if (!messagesRef.current.some(m => m.id === msg.id)) {
-                                    console.log(`receive final event id: ${msg.id}, session_id: ${msg.session_id},  content: ${msg.content.slice(0, 200)}...`);
-                                    addMessage(msg);
-                                } else {
-                                    console.log(`receive final event id: ${msg.id}, session_id: ${msg.session_id},  content: ${msg.content.slice(0, 200)}... already in buffer`);
-                               }
+                            if (response.session.id !== currentChatBotSession?.id) {
+                                onUpdateOrAddSession(response.session);
                             }
-                            onUpdateOrAddSession(response.session); // safe sidebar update
                             setWaitResponse(false);
                             break;
                         }
@@ -183,11 +177,23 @@ const ChatBot = (
     useEffect(() => {
         if (currentChatBotSession?.id) {
             // 👇 Reset internal buffer as well. 
-            setAllMessages([]); 
+            setAllMessages([]);
             getChatBotMessages({ session_id: currentChatBotSession.id }).then((response) => {
                 if (response.data) {
                     const serverMessages = response.data as ChatMessagePayload[];
-                    console.log("[📥 ChatBot] Switching conversation: received messages:", serverMessages);
+                    console.group(`[📥 ChatBot] Loaded messages for session: ${currentChatBotSession.id}`);
+                    console.log(`Total: ${serverMessages.length}`);
+                    for (const msg of serverMessages) {
+                        console.log({
+                            id: msg.id,
+                            type: msg.type,
+                            sender: msg.sender,
+                            isThought: msg.metadata?.thought || false,
+                            task: msg.metadata?.fred?.task || null,
+                            content: msg.content?.slice(0, 120),
+                        });
+                    }
+                    console.groupEnd();
                     setAllMessages(serverMessages);
                 }
             });
@@ -197,8 +203,46 @@ const ChatBot = (
 
 
     // Catch the user input
-    const handleSend = (content: UserInputContent) => {
+    const handleSend = async (content: UserInputContent) => {
         // Currently the logic is to send the first non-null content in the order of text, audio and file
+        const userId = KeyCloakService.GetUserMail();
+        const sessionId = currentChatBotSession?.id;
+        const agentName = currentAgenticFlow.name;
+        if (content.files && content.files.length > 0) {
+            for (const file of content.files) {
+                const formData = new FormData();
+                formData.append("user_id", userId);
+                formData.append("session_id", sessionId || "");  // "" if undefined
+                formData.append("agent_name", agentName);
+                formData.append("file", file);
+
+                try {
+                    const response = await fetch(`${getConfig().backend_url_api}/fred/chatbot/upload`, {
+                        method: "POST",
+                        body: formData,
+                    });
+
+                    if (!response.ok) {
+                        showError({
+                            summary: "File Upload Error",
+                            detail: `Failed to upload ${file.name}: ${response.statusText}`,
+                        });
+                        throw new Error(`Failed to upload ${file.name}`);
+                    }
+
+                    const result = await response.json();
+                    console.log("✅ Uploaded file:", result);
+
+                } catch (err) {
+                    console.error("❌ File upload failed:", err);
+                    showError({
+                        summary: "File Upload Error",
+                        detail: (err as Error).message,
+                    });
+                }
+            }
+        }
+
         if (content.text) {
             queryChatBot(content.text.trim());
         } else if (content.audio) {
@@ -290,7 +334,7 @@ const ChatBot = (
 
                     }}>
                     <MessagesArea
-                        key={currentChatBotSession?.id} 
+                        key={currentChatBotSession?.id}
                         messages={messages}
                         agenticFlows={agenticFlows} />
                     {waitResponse && (

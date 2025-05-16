@@ -267,11 +267,6 @@ export const DocumentLibrary = () => {
   );
   const currentDocuments = filteredFiles.slice(indexOfFirstDocument, indexOfLastDocument);
 
-  // Hero background styling
-  const heroBackground =
-    `linear-gradient(${theme.palette.heroBackgroundGrad.gradientFrom}, ${theme.palette.heroBackgroundGrad.gradientTo})`
-
-
   // Fetch the full document when the user clicks on "View Full Document"
   // and open the DocumentViewer component
   const handleViewDocument = async (document_uid: string) => {
@@ -306,7 +301,6 @@ export const DocumentLibrary = () => {
       <Box
         sx={{
           position: "relative",
-          backgroundImage: `${heroBackground}, url('https://www.thalesgroup.com/sites/default/files/database/assets/images/2022-07/BandeauGroupeAbout2018.jpg')`,
           backgroundSize: "cover",
           backgroundPosition: "center",
           py: { xs: 3, md: 4 }, // Reduced padding

@@ -95,7 +95,7 @@ function Area(
                     <Message
                         message={message}
                         agenticFlow={agenticFlow}
-                        side={el.sender === "assistant" ? "left" : "right"}
+                        side={el.sender === "user" ? "right" : "left"}
                         enableCopy={true}
                         enableThumbs={true}
                         enableAudio={true}

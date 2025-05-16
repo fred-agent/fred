@@ -70,15 +70,31 @@ def session_manager(context_service, test_agent):
         manager = SessionManager(storage=InMemorySessionStorage(), agent_manager=mock_agent_manager)
 
         async def mock_stream(compiled_graph, input_messages, session_id, callback, assistant_id, config=None):
+            # Simulate a streamed message
             await callback({
                 "content": "Streaming reply",
                 "type": "ai",
                 "session_id": session_id
             })
-            return AIMessage(
+
+            # Simulate final messages
+            final_msg = AIMessage(
                 content="Final reply with context",
                 response_metadata={"model_name": "test-model", "sources": []}
             )
+
+            all_messages = [
+                SystemMessage(content="Intermediate system thought"),
+                final_msg
+            ]
+            # Simulate returned list of messages
+            return [
+                SystemMessage(content="Intermediate system thought"),
+                AIMessage(
+                    content="Final reply with context",
+                    response_metadata={"model_name": "test-model", "sources": []}
+                )
+            ]
 
         manager._stream_agent_response = mock_stream
         return manager
@@ -122,7 +138,13 @@ async def test_session_manager_with_context_enrichment(session_manager, context_
         message="Test message",
         agent_name="test-agent"
     )
-
+    assert session is not None
+    assert messages is not None
+    assert any(msg.sender == "user" and msg.content == "Test message" for msg in messages)
+    assert any(msg.sender == "assistant" and msg.content == "Final reply with context" for msg in messages)
+    assert any(msg.sender == "system" and msg.content == "Intermediate system thought" for msg in messages)
+    ranks = [msg.rank for msg in messages]
+    assert sorted(ranks) == ranks  # Messages should be ordered by increasing rank
     assert callback_mock.call_count == 1
 
 

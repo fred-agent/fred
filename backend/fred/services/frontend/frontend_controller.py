@@ -71,11 +71,9 @@ class UiController:
             except Exception as e:
                 logger.error(f"Failed to delete file {file_path}: {e}")
 
-        @app.get("/config/features",tags=fastapi_tags, summary="Get the frontend dynamic configuration")
+        @app.get("/config/frontend_settings",tags=fastapi_tags, summary="Get the frontend dynamic configuration")
         def get_frontend_config():
-            return {
-                "feature_flags": get_configuration().features.feature_flags
-        }
+            return get_configuration().frontend_settings
 
         @app.get("/export", tags=fastapi_tags, summary="Export a dump of the data")
         async def export_data(background_tasks: BackgroundTasks, user: KeycloakUser = Depends(get_current_user)):

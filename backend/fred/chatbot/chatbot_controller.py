@@ -6,12 +6,15 @@ from uuid import uuid4
 from chatbot.agent_manager import AgentManager
 from services.chatbot_session.in_memory_session_backend import InMemorySessionStorage
 from fred.services.chatbot_session.session_manager import SessionManager
-from services.chatbot_session.structure.chat_schema import ChatMessagePayload, ErrorEvent, FinalEvent, SessionSchema, StreamEvent
+from services.chatbot_session.structure.chat_schema import ChatMessagePayload, ErrorEvent, FinalEvent, SessionSchema, SessionWithFiles, StreamEvent
 from chatbot.structures.chatbot_error import ChatBotError
 from fastapi import (
     APIRouter,
     Body,
     Depends,
+    File,
+    Form,
+    UploadFile,
     WebSocket,
     WebSocketDisconnect,
 )
@@ -152,6 +155,7 @@ class ChatbotController:
             await websocket.accept()
             try:
                 while True:
+                    client_request = None
                     try:
                         # Receive the prompt from the client
                         client_request = await websocket.receive_json()
@@ -200,7 +204,7 @@ class ChatbotController:
             description="Get the list of active chatbot sessions.",
             summary="Get the list of active chatbot sessions.",
         )
-        def get_sessions(user: KeycloakUser = Depends(get_current_user)) -> list[SessionSchema]:
+        def get_sessions(user: KeycloakUser = Depends(get_current_user)) -> list[SessionWithFiles]:
             return self.session_manager.get_sessions(user.email)
         
         @app.get(
@@ -223,4 +227,29 @@ class ChatbotController:
             return self.session_manager.delete_session(session_id)
 
 
+        @app.post(
+            "/chatbot/upload",
+            description="Upload a file to be attached to a chatbot conversation",
+            summary="Upload a file",
+            tags=fastapi_tags,
+        )
+        async def upload_file(
+            user_id: str = Form(...),
+            session_id: str = Form(...),
+            agent_name: str = Form(...),
+            file: UploadFile = File(...)
+        ) -> dict:
+            """
+            Upload a file to be attached to a chatbot conversation.
+
+            Args:
+                user_id (str): User ID.
+                session_id (str): Session ID.
+                agent_name (str): Agent name.
+                file (UploadFile): File to upload.
+
+            Returns:
+                dict: Response message.
+            """
+            return await self.session_manager.upload_file(user_id, session_id, agent_name, file)
             

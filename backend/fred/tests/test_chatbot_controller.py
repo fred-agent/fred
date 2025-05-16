@@ -18,7 +18,7 @@ def test_app():
     routers and controllers for testing.
     """
 
-    config = parse_server_configuration("./resources/configuration.yaml")
+    config = parse_server_configuration("./config/configuration.yaml")
     ApplicationContext(config)
 
     kube_service = KubeService()

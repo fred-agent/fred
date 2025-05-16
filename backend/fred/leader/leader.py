@@ -12,6 +12,8 @@ from leader.structures.plan import Plan
 from leader.structures.state import State
 logger = logging.getLogger(__name__)
 
+MAX_STEPS = 2
+
 class Leader(Flow):
     """
     Fred is an agentic flow chatbot that uses a plan and supervisor approach with ReAct experts calling.
@@ -94,9 +96,11 @@ class Leader(Flow):
         Args:
             state: State of the agent.
         """
+        if len(state["progress"]) >= MAX_STEPS:
+            logger.warning(f"Max steps ({MAX_STEPS}) reached. Forcing validation.")
+            return "validate"
         if len(state["progress"]) == len(state["plan"].steps):
             return "validate"
-
         return "execute"
 
     async def should_replan(self, state: State) -> Literal["respond", "planning"]:
@@ -407,8 +411,19 @@ class Leader(Flow):
             f"If the objective has been fully achieved, respond with 'respond'. "
             f"If additional steps are still required to meet the objective, respond with 'planning'. "
             f"However, if you determine that the current plan cannot meet the objective given the available resources and experts, "
-            f"and further planning would not help, respond with 'respond'."
+            f"and further planning would not help, respond with 'respond'. "
+            f"If you are not absolutely sure more planning is needed, respond with 'respond'."
         )
+        """ prompt = (
+            f"Your objective was this: {objective}\n\n"
+            f"Your original plan was this: {current_plan}\n\n"
+            f"The previous messages are the result of your reflexion for every step of the plan. "
+            f"You need to validate if the objective has been met after all this reflexion. "
+            f"If the objective has been fully achieved, respond with 'respond'. "
+            f"If additional steps are still required to meet the objective, respond with 'planning'. "
+            f"However, if you determine that the current plan cannot meet the objective given the available resources and experts, "
+            f"and further planning would not help, respond with 'respond'."
+        ) """
 
         step_conclusions = []
         for _, step_responses in state["progress"]:

@@ -19,7 +19,7 @@ import { ImageComponent } from "../utils/image.tsx";
 import { useContext } from "react";
 import { ApplicationContext } from "./ApplicationContextProvider.tsx";
 import { SideBarClusterSelector } from "../components/SideBarClusterSelector.tsx";
-import { FeatureFlagKey, isFeatureEnabled } from "../common/config.tsx";
+import { FeatureFlagKey, getProperty, isFeatureEnabled } from "../common/config.tsx";
 
 export default function SideBar({ darkMode, onThemeChange }) {
   const theme = useTheme();
@@ -142,6 +142,9 @@ export default function SideBar({ darkMode, onThemeChange }) {
     // Vérifier si le chemin de base actuel correspond exactement au chemin de base du menu
     return currentPathBase === menuPathBase;
   };
+
+  const logoName = getProperty('logoName') || "fred";
+
   return (
     <Box
       height='100vh'
@@ -187,7 +190,7 @@ export default function SideBar({ darkMode, onThemeChange }) {
             }}
           >
             <ImageComponent
-              name={'fred'}
+              name={logoName}
               width="36px"
               height="36px"
             />
@@ -201,7 +204,7 @@ export default function SideBar({ darkMode, onThemeChange }) {
                 color: theme.palette.text.primary
               }}
             >
-              Fred
+              {logoName}
             </Typography>
           )}
         </Box>

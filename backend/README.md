@@ -99,7 +99,7 @@ That creates a local virtualenv environment.
 To start it using Python, type in:
 
 ```sh
-python src/main.py --server.configurationPath ./resources/configuration.yaml --server.baseUrlPath /fred-backend
+python src/main.py --server.configurationPath ./config/configuration.yaml --server.baseUrlPath /fred-backend
 ```
 
 or equivalently
@@ -132,7 +132,7 @@ need.
       "program": "${workspaceFolder}/src/main.py",
       "args": [
         "--server.configurationPath",
-        "${workspaceFolder}/resources/configuration.yaml",
+        "${workspaceFolder}/config/configuration.yaml",
         "--server.baseUrlPath",
         "/fred"
       ]

@@ -62,4 +62,4 @@ EXPOSE 8000
 
 # Run the python app
 ENTRYPOINT ["python", "fred/main.py"]
-CMD ["--server.configurationPath", "/app/resources/configuration.yaml", "--server.baseUrlPath", "/fred"]
+CMD ["--server.configurationPath", "/app/config/configuration.yaml", "--server.baseUrlPath", "/fred"]

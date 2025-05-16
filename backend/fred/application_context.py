@@ -18,7 +18,7 @@ from threading import Lock
 from typing import Dict, List, Type, Any
 from pydantic import BaseModel
 from model_factory import get_structured_chain
-from common.structure import AgentSettings, Configuration, ServicesSettings
+from fred.common.structure import AgentSettings, Configuration, ServicesSettings
 from fred.model_factory import get_model
 from langchain_core.language_models.base import BaseLanguageModel
 from flow import AgentFlow, Flow  # Base class for all agent flows
@@ -97,6 +97,18 @@ def get_model_for_agent(agent_name: str) -> BaseLanguageModel:
         BaseLanguageModel: The AI model configured for the agent.
     """
     return get_app_context().get_model_for_agent(agent_name)
+
+def get_default_model() -> BaseLanguageModel:
+    """
+    Retrieves the default AI model instance.
+
+    Args:
+        agent_name (str): The name of the agent.
+
+    Returns:
+        BaseLanguageModel: The AI model configured for the agent.
+    """
+    return get_app_context().get_default_model()
 
 
 def get_model_for_leader() -> BaseLanguageModel:
@@ -226,7 +238,6 @@ class ApplicationContext:
                 cls._instance._service_instances = {}  # Cache for service instances
                 cls._instance.apply_default_models()
 
-                # Build internal indexes
                 cls._instance._build_indexes()
 
                 # ✅ Dynamically load agent classes based on configuration
@@ -325,6 +336,12 @@ class ApplicationContext:
         service_settings = self.get_service_settings(service_name)
         return get_model(service_settings.model)
 
+    def get_default_model(self) -> BaseLanguageModel:
+        """
+        Retrieves the default AI model instance.
+        """
+        return get_model(self.configuration.ai.default_model)
+    
     def get_model_for_leader(self) -> BaseLanguageModel:
         leader_settings = self.get_leader_settings()
         return get_model(leader_settings.model)

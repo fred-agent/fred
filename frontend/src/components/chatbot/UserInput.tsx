@@ -13,7 +13,7 @@ import Chip from "@mui/material/Chip";
 export interface UserInputContent {
     text?: string;
     audio?: Blob;
-    files?: Blob[];
+    files?: File[];
 }
 
 export default function UserInput(
@@ -31,6 +31,7 @@ export default function UserInput(
     }) {
 
     const theme = useTheme();
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Focus on send button
     const sendRef = useRef<HTMLInputElement>(null);
@@ -42,7 +43,7 @@ export default function UserInput(
 
     const [userInput, setUserInput] = useState<string>("");
     const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
-    const [filesBlob, setFilesBlob] = useState<Blob[] | null>(null);
+    const [filesBlob, setFilesBlob] = useState<File[] | null>(null);
 
     const handleKeyDown = (event: React.KeyboardEvent) => {
         if (event.key === 'Enter') {
@@ -240,7 +241,7 @@ export default function UserInput(
                         justifyContent="space-between" // Spread items across the row
                         sx={{ width: '100%', marginTop: '4px' }}
                     >
-                        {/* Left Buttons: Attach File and Audio Record */}
+                        {/* Left Buttons: Attach File */}
                         <Grid2 display="flex" gap={1}>
                             {/* Attach File Button */}
                             {enableFilesAttachment && (
@@ -254,6 +255,21 @@ export default function UserInput(
                                             <input type="file" hidden multiple onChange={handleFilesChange} />
                                             <AttachFileIcon fontSize="inherit" />
                                         </IconButton>
+                                        <input
+                                            type="file"
+                                            style={{ display: "none" }}
+                                            multiple
+                                            onChange={(e) => {
+                                                if (e.target.files) {
+                                                    setFilesBlob((prev) => {
+                                                        const existing = prev ?? [];
+                                                        return [...existing, ...Array.from(e.target.files)];
+                                                    });
+                                                    e.target.value = ""; // reset input so selecting same file again will re-trigger change
+                                                }
+                                            }}
+                                            ref={fileInputRef}
+                                        />
                                     </Badge>
                                 </Tooltip>
                             )}

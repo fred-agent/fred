@@ -1,16 +1,22 @@
 from datetime import datetime
 import logging
+from pathlib import Path
 import secrets
+import tempfile
 from typing import List, Tuple, Dict, Any, Optional, Union, Callable, Awaitable
 from uuid import uuid4
 
+from fastapi import UploadFile
+from collections import defaultdict
+
 from chatbot.agent_manager import AgentManager
 from flow import AgentFlow
-from services.chatbot_session.structure.chat_schema import ChatMessagePayload, ChatTokenUsage, SessionSchema, clean_agent_metadata
+from fred.services.chatbot_session.attachement_processing import AttachementProcessing
+from services.chatbot_session.structure.chat_schema import ChatMessagePayload, ChatTokenUsage, SessionSchema, SessionWithFiles, clean_agent_metadata
 from services.chatbot_session.abstract_session_backend import AbstractSessionStorage
 from langchain_core.messages import (BaseMessage, HumanMessage, AIMessage)
 from langgraph.graph.state import CompiledStateGraph
-from fred.application_context import get_context_service
+from fred.application_context import get_context_service, get_default_model
 
 import asyncio
 
@@ -37,8 +43,13 @@ class SessionManager:
         self.agent_manager = agent_manager
         self.context_service = get_context_service()
         self.context_cache = {}  # Cache for agent contexts
+        self.temp_files: dict[str, list[str]] = defaultdict(list)
+        self.attachement_processing = AttachementProcessing()
 
-    def _get_or_create_session(self, user_id: str, session_id: Optional[str]) -> Tuple[SessionSchema, bool]:
+    def _get_or_create_session(self, 
+                               user_id: str, 
+                               query: str,
+                               session_id: Optional[str]) -> Tuple[SessionSchema, bool]:
         """
         Retrieves an existing session or creates a new one if not found.
 
@@ -56,7 +67,11 @@ class SessionManager:
                 return session, False
 
         new_session_id = secrets.token_urlsafe(8)
-        title = f"{new_session_id}"
+        title: str = get_default_model().invoke(
+            "Give a short, clear title for this conversation based on the user's question. Just a few keywords. Here's the question: " + query
+        ).content
+
+
         session = SessionSchema(
             id=new_session_id,
             user_id=user_id,
@@ -95,7 +110,7 @@ class SessionManager:
             agent_name=agent_name
         )
         assistant_id = str(uuid4())
-        final_ai_msg = await self._stream_agent_response(
+        all_messages = await self._stream_agent_response(
             compiled_graph=agent.get_compiled_graph(),
             input_messages=history,
             session_id=session.id,
@@ -106,8 +121,12 @@ class SessionManager:
         session.updated_at = datetime.now()
         self.storage.save_session(session)
            # Generate ChatMessagePayloads
+           # Count only user messages in prior history
+        user_turn_index = sum(1 for m in history if isinstance(m, HumanMessage))
+        base_rank = user_turn_index * 10
+        #user_turn_index = (len(history) - 1) // 2  # Human/AI alternating, so user turns index = floor(n / 2)
+        #base_rank = user_turn_index * 10  # Leave room for multiple AI thoughts
         timestamp = datetime.now().isoformat()
-        rank = (len(history) - 1) // 2  # based on history before the new answer
 
         user_payload = ChatMessagePayload(
             id=assistant_id,
@@ -116,26 +135,44 @@ class SessionManager:
             content=message,
             timestamp=timestamp,
             session_id=session.id,
-            rank=rank,
-        )           
-
-        ai_payload = ChatMessagePayload(
-            id=assistant_id,
-            type="ai",
-            sender="assistant",
-            content=final_ai_msg.content,
-            timestamp=timestamp,
-            session_id=session.id,
-            rank=rank,
-        ).with_metadata(
-            model=final_ai_msg.response_metadata.get("model_name"),
-            sources=final_ai_msg.response_metadata.get("sources", []),
-            token_usage=ChatTokenUsage(input_tokens=0, output_tokens=0, total_tokens=0),
+            rank=base_rank,
         )
+        # Create assistant/system payloads
+        response_payloads = []
+        for i, msg in enumerate(all_messages):
+            msg_type = "ai" if isinstance(msg, AIMessage) else "system"
+            payload = ChatMessagePayload(
+                id=str(uuid4()),
+                type=msg_type,
+                sender="assistant" if isinstance(msg, AIMessage) else "system",
+                content=msg.content,
+                timestamp=timestamp,
+                session_id=session.id,
+                rank=base_rank  + 1 + i,  # you can adjust this as needed
+            )
+
+            payload.metadata = {
+                **(msg.metadata or {}),
+                "token_usage": ChatTokenUsage(input_tokens=0, output_tokens=0, total_tokens=0).model_dump()
+        }
+
+            """ if isinstance(msg, AIMessage):
+                payload = payload.with_metadata(
+                model=msg.response_metadata.get("model_name"),
+                sources=msg.response_metadata.get("sources", []),
+                token_usage=ChatTokenUsage(input_tokens=0, output_tokens=0, total_tokens=0),
+            )
+            else:
+                payload = payload.with_metadata(
+                token_usage=ChatTokenUsage(input_tokens=0, output_tokens=0, total_tokens=0)
+            ) """
+            logger.info(f"[SAVING] type={msg_type} | content={msg.content[:60]} | thought={payload.metadata.get('thought')} | fred.task={payload.metadata.get('fred', {}).get('task')}")
+            response_payloads.append(payload)
+                
         # Save messages to storage
-        self.storage.save_messages(session.id, [user_payload])
-        self.storage.save_messages(session.id, [ai_payload])
-        return session, [user_payload, ai_payload]
+        all_payloads = [user_payload] + response_payloads
+        self.storage.save_messages(session.id, all_payloads)
+        return session, all_payloads
 
     def _prepare_session_and_history(
         self, user_id: str, session_id: str | None, message: str, agent_name: str
@@ -157,7 +194,7 @@ class SessionManager:
             - is_new_session: whether this session was newly created
         """
        
-        session, is_new_session = self._get_or_create_session(user_id, session_id)
+        session, is_new_session = self._get_or_create_session(user_id, message, session_id)
 
         # Build up message history
         history: List[BaseMessage] = []
@@ -165,6 +202,7 @@ class SessionManager:
             messages = self.get_session_history(session.id)
 
             for msg in messages:
+                logger.info(f"[RESTORED] id={msg.id} | type={msg.type} | thought={msg.metadata.get('thought')} | fred.task={msg.metadata.get('fred', {}).get('task')}")
                 if msg.type == "human":
                     history.append(HumanMessage(content=msg.content))
                 elif msg.type == "ai":
@@ -184,8 +222,36 @@ class SessionManager:
     def delete_session(self, session_id: str) -> bool:
         return self.storage.delete_session(session_id)
 
-    def get_sessions(self, user_id: str) -> List[SessionSchema]:
-        return self.storage.get_sessions_for_user(user_id)
+    def get_sessions(self, user_id: str) -> List[SessionWithFiles]:
+        """
+        Retrieves all sessions for a user and enriches them with file names.
+        The reason we enrich with file names is that the session storage does not
+        store file names, but only the session ID.
+        This is because the files are stored in a temporary directory they are meant to be 
+        moderatively persistent.
+        Args:
+            user_id: The ID of the user.
+        Returns:
+            A list of SessionWithFiles objects, each containing session data and file names.
+        """
+        sessions = self.storage.get_sessions_for_user(user_id)
+        enriched_sessions = []
+
+        for session in sessions:
+            session_folder = self.get_session_temp_folder(session.id)
+            if session_folder.exists():
+                file_names = [f.name for f in session_folder.iterdir() if f.is_file()]
+            else:
+                file_names = []
+
+            enriched_sessions.append(
+                SessionWithFiles(
+                    **session.dict(),
+                    file_names=file_names
+                )
+            )
+        return enriched_sessions
+
 
     def get_session_history(self, session_id: str) -> List[ChatMessagePayload]:
         return self.storage.get_message_history(session_id)
@@ -199,7 +265,7 @@ class SessionManager:
         callback: CallbackType,
         assistant_id: str,
         config: Dict = None,
-    ) -> AIMessage:
+    ) -> List[BaseMessage]:
         """
         Executes the agentic flow and streams responses via the given callback.
 
@@ -214,12 +280,11 @@ class SessionManager:
         Returns:
             The final AIMessage.
         """
-        last_ai_message: AIMessage | None = None
         config = config or {
             "configurable": {"thread_id": session_id},
             "recursion_limit": 40
         }
-
+        all_payloads: list[ChatMessagePayload] = []
         try:
             async for event in compiled_graph.astream(
                 {"messages": input_messages},
@@ -230,10 +295,18 @@ class SessionManager:
                 key = next(iter(event))
                 message_block = event[key].get("messages", [])
                 for message in message_block:
-                    if isinstance(message, AIMessage):
-                        last_ai_message = message
+                    enriched = ChatMessagePayload(
+                        id=assistant_id or str(uuid4()),
+                        type=message.type,
+                        sender="assistant" if isinstance(message, AIMessage) else "system",
+                        content=message.content,
+                        timestamp=datetime.now().isoformat(),
+                        session_id=session_id,
+                        metadata=clean_agent_metadata(getattr(message, "response_metadata", {}) or {})
+                    )
 
-                    enriched_dict = {
+                    all_payloads.append(enriched)  # ✅ collect all messages
+                    """ enriched_dict = {
                         "id": assistant_id or str(uuid4()),
                         "type": message.type,
                         "sender": "assistant" if isinstance(message, AIMessage) else "system",
@@ -241,8 +314,16 @@ class SessionManager:
                         "timestamp": datetime.now().isoformat(),
                         "session_id": session_id,
                         "metadata": clean_agent_metadata(getattr(message, "response_metadata", {}) or {})
-                    }
-                    result = callback(enriched_dict)
+                    } """
+                    logger.info(
+                        "[STREAMED] %s\n         type=%s | thought=%s | fred.task=%s",
+                        enriched.id,
+                        enriched.type,
+                        enriched.metadata.get("thought"),
+                        enriched.metadata.get("fred", {}).get("task") if isinstance(enriched.metadata.get("fred"), dict) else None
+                    )
+
+                    result = callback(enriched.model_dump())
                     if asyncio.iscoroutine(result):
                         await result
 
@@ -250,10 +331,7 @@ class SessionManager:
             logger.exception(f"Error streaming agent response: {e}")
             raise e
 
-        if last_ai_message is None:
-            raise ValueError("No AIMessage returned from graph execution.")
-
-        return last_ai_message
+        return all_payloads
 
     def _get_agent_contexts(self, agent_name: str) -> List[Dict[str, Any]]:
         """
@@ -298,3 +376,47 @@ class SessionManager:
             logger.info(f"Context refreshed for agent '{agent_name}'")
             return True
         return False
+    
+
+    def get_session_temp_folder(self, session_id: str) -> Path:
+        base_temp_dir = Path(tempfile.gettempdir()) / "chatbot_uploads"
+        session_folder = base_temp_dir / session_id
+        session_folder.mkdir(parents=True, exist_ok=True)
+        return session_folder
+
+    async def upload_file(self, user_id: str, session_id: str, agent_name: str, file: UploadFile) -> dict:
+        """
+        Handle file upload from a user to be attached to a chatbot session.
+
+        Args:
+            user_id (str): ID of the user.
+            session_id (str): ID of the session.
+            agent_name (str): Name of the agent.
+            file (UploadFile): The uploaded file.
+
+        Returns:
+            dict: Response info with file path.
+        """
+        try:
+            # Create session-specific temp directory
+            session_folder = self.get_session_temp_folder(session_id)
+            file_path = session_folder / file.filename
+
+            # Write file content
+            with open(file_path, "wb") as f:
+                content = await file.read()
+                f.write(content)
+
+            if str(file_path) not in self.temp_files[session_id]:
+                self.temp_files[session_id].append(str(file_path))
+                self.attachement_processing.process_attachment(file_path)
+            logger.info(f"[📁 Upload] File '{file.filename}' saved to {file_path} for session '{session_id}'")
+            return {
+                "filename": file.filename,
+                "saved_path": str(file_path),
+                "message": "File uploaded successfully"
+            }
+
+        except Exception as e:
+            logger.exception(e)
+            raise RuntimeError("Failed to store uploaded file.")
