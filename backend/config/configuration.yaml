@@ -52,7 +52,8 @@ ai:
   default_model:
     #provider: "ollama"
     #name: "llama2"
-    provider: "openai"
+    # provider: "openai"
+    provider: "azureopenai"
     name: "gpt-4o"
     #provider: "azure"
     #name: "fred-gpt-4o"
@@ -99,6 +100,15 @@ ai:
       model: {}
     - name: "DocumentsExpert"
       class_path: "agents.documents.documents_expert.DocumentsExpert"
+      enabled: false
+      mcp_servers:
+        - name: knowledgeflow-mcp-server
+          transport: sse
+          url: http://localhost:8111/mcp
+          sse_read_timeout: 2000
+      model: {}
+    - name: "s1000dDocumentsExpert"
+      class_path: "agents.s1000d_documents.s1000d_documents_expert.s1000dDocumentsExpert"
       enabled: true
       mcp_servers:
         - name: knowledgeflow-mcp-server
