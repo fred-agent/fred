@@ -150,7 +150,7 @@ feedback:
 # Enable or disable the security layer
 security:
   enabled: false
-  keycloak_url: "http://keycloak:8080/realms/fred"
+  keycloak_url: "http://keycloak:8080/realms/app"
   authorized_origins:
   - "http://localhost:5173"
 
@@ -167,12 +167,6 @@ azure:
   deployment:
     llm: ""
     embedding: ""
-
-# KEYCLOAK
-keycloak:
-  server_url: "https://keycloak:8080"
-  realm_name: "fred"
-  client_id: "fred"
 
 # CONTEXT STORAGE CONFIGURATION
 context_storage:
