@@ -150,7 +150,9 @@ feedback:
 # Enable or disable the security layer
 security:
   enabled: false
-  keycloak_url: "http://fred-keycloak:8080/realms/fred"
+  keycloak_url: "http://keycloak:8080/realms/fred"
+  authorized_origins:
+  - "http://localhost:5173"
 
 # Environment variables for the application
 
