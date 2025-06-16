@@ -53,10 +53,9 @@ ai:
     #provider: "ollama"
     #name: "llama2"
     # provider: "openai"
-    provider: "azureopenai"
-    name: "gpt-4o"
-    #provider: "azure"
-    #name: "fred-gpt-4o"
+    # name: "gpt-4o"
+    provider: "azure"
+    name: "fred-gpt-4o"
     api_version: "2024-05-01-preview"
     temperature: 0.0
   leader:
@@ -108,7 +107,7 @@ ai:
           sse_read_timeout: 2000
       model: {}
     - name: "s1000dDocumentsExpert"
-      class_path: "agents.s1000d_documents.s1000d_documents_expert.s1000dDocumentsExpert"
+      class_path: "agents.documents.s1000d.documents_expert.s1000dDocumentsExpert"
       enabled: true
       mcp_servers:
         - name: knowledgeflow-mcp-server

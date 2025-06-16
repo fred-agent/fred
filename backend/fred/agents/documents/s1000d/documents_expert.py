@@ -18,13 +18,13 @@ from datetime import datetime
 from typing import List, Optional
 
 from fred.flow import AgentFlow
-from fred.agents.s1000d_documents.s1000d_documents_expert_toolkit import s1000dDocumentsExpertToolkit
+from fred.agents.documents.s1000d.documents_expert_toolkit import s1000dDocumentsExpertToolkit
 from fred.application_context import (get_agent_settings,
                                       get_mcp_client_for_agent,
                                       get_model_for_agent)
 from fred.common.models.document_source import DocumentSource
 from fred.services.chatbot_session.structure.chat_schema import ChatSource
-from langchain_core.messages import HumanMessage, ToolMessage
+from langchain_core.messages import HumanMessage, ToolMessage, SystemMessage
 from langgraph.constants import START
 from langgraph.graph import MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
@@ -61,8 +61,6 @@ class s1000dDocumentsExpert(AgentFlow):
         self.model = get_model_for_agent(self.name)
         self.mcp_client = get_mcp_client_for_agent(self.name)
         self.toolkit = s1000dDocumentsExpertToolkit(self.mcp_client)
-        self.model_with_tools = self.model.bind_tools(self.toolkit.get_tools())
-        self.llm =self.model_with_tools
         self.categories = self.agent_settings.categories if self.agent_settings.categories else ["s1000d"]
         if self.agent_settings.tag:
             self.tag = self.agent_settings.tag
@@ -78,8 +76,9 @@ class s1000dDocumentsExpert(AgentFlow):
             base_prompt=self._generate_prompt(),
             categories=self.categories,
             tag=self.tag,
+            toolkit=self.toolkit
         )
-        
+    
     def _generate_prompt(self) -> str:
         """
         Generates the base prompt for the S1000D Document expert.
@@ -88,7 +87,7 @@ class s1000dDocumentsExpert(AgentFlow):
             str: The base prompt for the agent.
         """
         return (
-            "You are a an agnet responsible for analyzing document parts following the S1000D standard and ask questions to the user with the extracted information.\n"
+            "You are a an agent responsible for analyzing document parts regarding the public figure Alizée and ask questions to the user with the extracted information.\n"
             "Whenever you reference a document part, provide citations. You are also equipped with MCP server tools. \n"
             "When opening a conversation you must be the one asking the questions before introducing yourself.\n"
             "### Your Primary Responsibilities:\n"
@@ -106,13 +105,25 @@ class s1000dDocumentsExpert(AgentFlow):
             "3. Present the results clearly, with summaries, breakdowns, and trends where applicable.\n\n"
             f"The current date is {self.current_date}.\n\n"
             f"Your current context involves a Kubernetes cluster named {self.cluster_fullname}.\n" if self.cluster_fullname else ""
-
+        )
+        
+    def _greetings_prompt(self) -> str:
+        return (
+            "This is the first interaction that you have with the user so greet him/her and explain your purpose"
         )
     
+    def _create_question_prompt(self) -> str:
+        return (
+            "Your goal is to ask the user a question based on document content retrieved using the vector search tool.\n"
+            "You must first use the vector search tool with an appropriate query.\n"
+            "Then, using the returned document content, formulate a single multiple-choice or open-ended question for the user.\n"
+            "Do not generate questions without first using the tool."
+        )
+
+    
     async def reasoner(self, state: MessagesState):
-        
         try:
-            response = self.llm.invoke([self.base_prompt] + state["messages"])
+            response = self.model.invoke([self.base_prompt] + state["messages"])
             for msg in state["messages"]:
                 if isinstance(msg, ToolMessage):
                     try:
@@ -123,7 +134,7 @@ class s1000dDocumentsExpert(AgentFlow):
                         documents, sources = self.extract_sources_from_tool_response(documents_data)
                         # Check if we have any valid documents after processing
                         if not documents:
-                            ai_message = await self.llm.ainvoke([HumanMessage(content=
+                            ai_message = await self.model.ainvoke([HumanMessage(content=
                                 "I found some documents but couldn't process them correctly. Please try again later."
                             )])
                             return {"messages": [ai_message]}
@@ -134,10 +145,14 @@ class s1000dDocumentsExpert(AgentFlow):
         except Exception as e:
             # Handle any other unexpected errors
             print(f"Unexpected error in DocumentsExpert agent: {str(e)}")
-            error_message = await self.llm.ainvoke([HumanMessage(content=
+            error_message = await self.model.ainvoke([HumanMessage(content=
                 "An error occurred while processing your request. Please try again later."
             )])
             return {"messages": [error_message]}
+
+    # # Called by AgentManager to start the conversation first
+    # def start_autonomously(self):
+    #     return self.invoke({"messages": []})
 
     def extract_sources_from_tool_response(self, documents_data):
         logger.info(f"Received response with {len(documents_data)} documents")
@@ -172,15 +187,37 @@ class s1000dDocumentsExpert(AgentFlow):
             except Exception as e:
                 print(f"Error processing document: {str(e)}. Document: {doc}")
         return documents, sources
+    
+    async def generate_greetings(self, state: MessagesState):
+        response = self.model.invoke([self.base_prompt] + [self._greetings_prompt()])
+        return {"messages": [response]}
+     
+     
+    async def create_question(self, state: MessagesState):
+        messages = [self.base_prompt, self._create_question_prompt()]
+        response = self.model.invoke(messages)
+        if response.tool_calls:
+            print(f"[DEBUG] Tool call detected: {response.tool_calls}")
+        return {"messages": [response]}
+
 
     def get_graph(self):
         builder = StateGraph(MessagesState)
 
-        builder.add_node("reasoner", self.reasoner)
+        builder.add_node("welcome_and_greet", self.generate_greetings)
+        builder.add_node("create_question", self.create_question)
         builder.add_node("tools", ToolNode(self.toolkit.get_tools()))
+        builder.add_node("reasoner", self.reasoner)
 
-        builder.add_edge(START, "reasoner")
-        builder.add_conditional_edges("reasoner", tools_condition)
+        builder.set_entry_point("welcome_and_greet")
+        builder.add_edge("welcome_and_greet", "create_question")
+
+        builder.add_conditional_edges("create_question", tools_condition)
         builder.add_edge("tools", "reasoner")
 
+        builder.add_edge("create_question", "reasoner")
+
+        builder.add_conditional_edges("reasoner", tools_condition)
+        builder.add_edge("tools", "reasoner")
+        builder.add_edge("reasoner", "create_question") 
         return builder
